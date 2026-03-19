@@ -31,7 +31,10 @@ public class Player : MonoBehaviour
     public Transform wallCheckLeft; // Assign "Left" or "LeftGround"
     public Transform Top;
     public float checkRadius = 0.1f;
+    public float groundCheckWidth = 0.5f;
+    public float topCheckWidth = 0.5f;
     public float wallCheckRadius = 0.1f;
+    public float wallCheckHeight = 0.5f;
     public LayerMask groundLayer; // Set to the layer your platforms/walls use
 
     [Header("References")]
@@ -126,17 +129,20 @@ public class Player : MonoBehaviour
     {
         moveInput = Input.GetAxisRaw("Horizontal");
 
-        // Ground Check using Ground child position from LemonGuy
-        isGrounded = Physics2D.OverlapCircle(groundCheck.position, checkRadius, groundLayer);
+        // Ground Check (bottom) - RECTANGLE
+        Vector2 groundBoxSize = new Vector2(groundCheckWidth, checkRadius);
+        isGrounded = Physics2D.OverlapBox(groundCheck.position, groundBoxSize, 0f, groundLayer);
 
-        isTop = Physics2D.OverlapCircle(Top.position, checkRadius, groundLayer);
+        // Top Check - RECTANGLE
+        Vector2 topBoxSize = new Vector2(topCheckWidth, checkRadius);
+        isTop = Physics2D.OverlapBox(Top.position, topBoxSize, 0f, groundLayer);
 
-        // Wall Checks using Left and Right child positions from LemonGuy
-        RaycastHit2D wallRightHit = Physics2D.Raycast(wallCheckRight.position, Vector2.right, wallCheckRadius, groundLayer);
-        RaycastHit2D wallLeftHit = Physics2D.Raycast(wallCheckLeft.position, Vector2.left, wallCheckRadius, groundLayer);
-
-        wallRight = wallRightHit.collider != null && !isGrounded;
-        wallLeft = wallLeftHit.collider != null && !isGrounded;
+        // Wall Checks - RECTANGLES
+        Vector2 wallBoxSize = new Vector2(wallCheckRadius * 2f, wallCheckHeight);
+        Vector2 wallRightCenter = (Vector2)wallCheckRight.position + Vector2.right * wallCheckRadius;
+        Vector2 wallLeftCenter = (Vector2)wallCheckLeft.position + Vector2.left * wallCheckRadius;
+        wallRight = Physics2D.OverlapBox(wallRightCenter, wallBoxSize, 0f, groundLayer) != null && !isGrounded;
+        wallLeft = Physics2D.OverlapBox(wallLeftCenter, wallBoxSize, 0f, groundLayer) != null && !isGrounded;
 
         isTouchingWall = wallRight || wallLeft;
 
@@ -173,6 +179,7 @@ public class Player : MonoBehaviour
         if (isTop == true && movingup)
         {
             // Stick to roof by disabling gravity and zeroing velocity
+            jumpsLeft = maxJumps;
             rb.gravityScale = 0;
             rb.velocity = new Vector2(rb.velocity.x, 0);
         }
@@ -182,8 +189,10 @@ public class Player : MonoBehaviour
             rb.gravityScale = 1;
         }
 
-        HandleJump();
+        print(wallLeft && wallRight);
+
         HandleWallSlide();
+        HandleJump();
         FlipSprite();
         // HandleWallRotationAnimation(); // Note: This method was referenced but not defined in your snippet
     }
@@ -272,8 +281,27 @@ public class Player : MonoBehaviour
         {
             isWallSliding = false;
         }
-    }
 
+        if (wallSide == -1) // Wall on left
+        {
+            animator.SetBool("Left_Active", true);
+            animator.SetBool("Right_Active", false);
+            jumpsLeft = maxJumps;
+        }
+        else if (wallSide == 1) // Wall on right
+        {
+            animator.SetBool("Left_Active", false);
+            animator.SetBool("Right_Active", true);
+            jumpsLeft = maxJumps;
+        }
+        else
+        {
+            // Not touching wall - reset parameters
+            animator.SetBool("Left_Active", false);
+            animator.SetBool("Right_Active", false);
+        }
+    }
+    
     void FlipSprite()
     {
         if (moveInput > 0) spriteRenderer.flipX = false;
@@ -282,15 +310,31 @@ public class Player : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
+        Gizmos.color = Color.red;
         if (groundCheck != null)
         {
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(groundCheck.position, checkRadius);
+            Vector2 groundBoxSize = new Vector2(groundCheckWidth, checkRadius);
+            Gizmos.DrawWireCube(groundCheck.position, groundBoxSize);
         }
         if (Top != null)
         {
             Gizmos.color = Color.blue;
-            Gizmos.DrawWireSphere(Top.position, checkRadius);
+            Vector2 topBoxSize = new Vector2(topCheckWidth, checkRadius);
+            Gizmos.DrawWireCube(Top.position, topBoxSize);
+        }
+        if (wallCheckRight != null)
+        {
+            Gizmos.color = Color.yellow;
+            Vector2 wallBoxSize = new Vector2(wallCheckRadius * 2f, wallCheckHeight);
+            Vector2 wallRightCenter = (Vector2)wallCheckRight.position + Vector2.right * wallCheckRadius;
+            Gizmos.DrawWireCube(wallRightCenter, wallBoxSize);
+        }
+        if (wallCheckLeft != null)
+        {
+            Gizmos.color = Color.yellow;
+            Vector2 wallBoxSize = new Vector2(wallCheckRadius * 2f, wallCheckHeight);
+            Vector2 wallLeftCenter = (Vector2)wallCheckLeft.position + Vector2.left * wallCheckRadius;
+            Gizmos.DrawWireCube(wallLeftCenter, wallBoxSize);
         }
     }
 }
